@@ -9,10 +9,9 @@ Progress log. Do not add features past the current milestone.
 - Global board: this ISO week only; Monday UTC starts fresh
 - Last week's top 3 stay until a higher score beats them
 - Name, gems, and best stay the same when the app is reopened
-- Public repo: https://github.com/Vortex-xyz/cannon-math
 
 ## Now
-- Nothing in progress
+- GitHub: local commit is ready. Connected token cannot create a repo (403). Waiting on an empty `Vortex-xyz/cannon-math` repo, then push.
 
 ## Not doing
 - Sign-in or accounts
