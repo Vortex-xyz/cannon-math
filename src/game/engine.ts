@@ -31,6 +31,7 @@ import {
   makeBallMesh,
   makeBarrel,
   makeBlock,
+  makeBoostPickup,
   makeBrickTexture,
   makeCannon,
   makeCliffs,
@@ -39,12 +40,15 @@ import {
   makeCraters,
   makeCrystal,
   makeEarth,
+  makeFrostPickup,
   makeGate,
   makeGem,
+  makeGhostPickup,
   makeGround,
   makeHills,
   makeKelp,
   makeLaneGlow,
+  makeLaser,
   makeMagnetPickup,
   makeMine,
   makeMotes,
@@ -52,10 +56,12 @@ import {
   makePileMesh,
   makePillars,
   makeRails,
+  makeRam,
   makeRockTexture,
   makeSaw,
   makeShieldPickup,
   makeSky,
+  makeSpike,
   makeStars,
   makeStreaks,
   makeSun,
@@ -72,7 +78,24 @@ import {
 import { VEHICLES, VEHICLE_LIST, type VehicleId } from "./vehicles";
 import { isPilotName, isPlayerId } from "./names";
 
-type Kind = "gate" | "wall" | "gem" | "block" | "ammo" | "shield" | "barrel" | "saw" | "crystal" | "magnet" | "mine";
+type Kind =
+  | "gate"
+  | "wall"
+  | "gem"
+  | "block"
+  | "ammo"
+  | "shield"
+  | "barrel"
+  | "saw"
+  | "crystal"
+  | "magnet"
+  | "mine"
+  | "spike"
+  | "laser"
+  | "ram"
+  | "boost"
+  | "frost"
+  | "ghost";
 
 type Ent = {
   kind: Kind;
@@ -174,6 +197,9 @@ export class GameEngine {
   private runGems = 0;
   private shielded = false;
   private magnetT = 0;
+  private boostT = 0;
+  private frostT = 0;
+  private ghostT = 0;
   private distance = 0;
   private combo = 0;
   private wallsBroken = 0;
@@ -199,7 +225,7 @@ export class GameEngine {
   private wallHp: number | null = null;
   private dustAcc = 0;
   private theme: ThemeId = "forge";
-  private highScores: Record<ThemeId, number> = { forge: 0, reef: 0, toon: 0, luna: 0 };
+  private highScores: Record<ThemeId, number> = { forge: 0, reef: 0, toon: 0, luna: 0, frost: 0, dune: 0 };
   private wallet = 80;
   private vehicle: VehicleId = "rig";
   private owned: VehicleId[] = ["rig"];
@@ -213,6 +239,9 @@ export class GameEngine {
   private cannon: ReturnType<typeof makeCannon>;
   private shieldFx!: THREE.Mesh;
   private magnetFx!: THREE.Mesh;
+  private boostFx!: THREE.Mesh;
+  private frostFx!: THREE.Mesh;
+  private ghostFx!: THREE.Mesh;
   private muzzleLight: THREE.PointLight;
   private laneGlow: THREE.Mesh;
   private skyMat!: THREE.ShaderMaterial;
@@ -516,6 +545,10 @@ export class GameEngine {
     this.magnetFx.position.y = 0.55;
     this.magnetFx.visible = false;
     this.cannon.root.add(this.magnetFx);
+    this.boostFx = this.auraRing(0xffd060, 1.28);
+    this.frostFx = this.auraRing(0x9fd8ff, 1.42);
+    this.ghostFx = this.auraRing(0xc8b0ff, 1.15);
+    this.cannon.root.add(this.boostFx, this.frostFx, this.ghostFx);
 
     this.pileMesh = makePileMesh(this.kit);
     this.cannon.root.add(this.pileMesh);
@@ -711,9 +744,31 @@ export class GameEngine {
     this.pushHud(true);
   }
 
+  private auraRing(color: number, radius: number) {
+    const mesh = new THREE.Mesh(
+      this.kit.geo(new THREE.TorusGeometry(radius, 0.04, 8, 22)),
+      this.kit.mat(new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7, depthWrite: false })),
+    );
+    mesh.rotation.x = Math.PI / 2;
+    mesh.position.y = 0.35;
+    mesh.visible = false;
+    return mesh;
+  }
+
+  private spinAura(mesh: THREE.Mesh, on: boolean, t: number, dt: number, spin: number) {
+    mesh.visible = on;
+    if (!on) return;
+    const mat = mesh.material as THREE.MeshBasicMaterial;
+    mat.opacity = 0.35 + Math.sin(t * 7) * 0.15;
+    mesh.rotation.z += dt * spin;
+  }
+
   private mountVehicle(id: VehicleId) {
     this.cannon.root.remove(this.shieldFx);
     this.cannon.root.remove(this.magnetFx);
+    this.cannon.root.remove(this.boostFx);
+    this.cannon.root.remove(this.frostFx);
+    this.cannon.root.remove(this.ghostFx);
     this.cannon.root.remove(this.pileMesh);
     this.cannon.root.visible = false;
     this.vehicle = id;
@@ -721,6 +776,9 @@ export class GameEngine {
     this.cannon.root.visible = true;
     this.cannon.root.add(this.shieldFx);
     this.cannon.root.add(this.magnetFx);
+    this.cannon.root.add(this.boostFx);
+    this.cannon.root.add(this.frostFx);
+    this.cannon.root.add(this.ghostFx);
     this.cannon.root.add(this.pileMesh);
     this.tintCannon();
   }
@@ -929,7 +987,43 @@ export class GameEngine {
       const s = makeSaw(this.kit);
       s.root.visible = false;
       this.scene.add(s.root);
-      this.ents.push(this.baseEnt("saw", s.root, { bodyMat: s.mat, width: 1.5, bob: this.rng() * 6 }));
+      this.ents.push(this.baseEnt("saw", s.root, { bodyMat: s.mat, width: 1.7, bob: this.rng() * 6 }));
+    }
+    for (let i = 0; i < 8; i++) {
+      const s = makeSpike(this.kit);
+      s.root.visible = false;
+      this.scene.add(s.root);
+      this.ents.push(this.baseEnt("spike", s.root, { bodyMat: s.mat, width: 1.5, bob: this.rng() * 6 }));
+    }
+    for (let i = 0; i < 6; i++) {
+      const s = makeLaser(this.kit);
+      s.root.visible = false;
+      this.scene.add(s.root);
+      this.ents.push(this.baseEnt("laser", s.root, { bodyMat: s.mat, width: 1.2, bob: this.rng() * 6 }));
+    }
+    for (let i = 0; i < 4; i++) {
+      const s = makeRam(this.kit);
+      s.root.visible = false;
+      this.scene.add(s.root);
+      this.ents.push(this.baseEnt("ram", s.root, { bodyMat: s.mat, width: 3.3, bob: this.rng() * 6 }));
+    }
+    for (let i = 0; i < 4; i++) {
+      const s = makeBoostPickup(this.kit);
+      s.root.visible = false;
+      this.scene.add(s.root);
+      this.ents.push(this.baseEnt("boost", s.root, { bodyMat: s.mat, width: 0.7, bob: this.rng() * 6 }));
+    }
+    for (let i = 0; i < 4; i++) {
+      const s = makeFrostPickup(this.kit);
+      s.root.visible = false;
+      this.scene.add(s.root);
+      this.ents.push(this.baseEnt("frost", s.root, { bodyMat: s.mat, width: 0.7, bob: this.rng() * 6 }));
+    }
+    for (let i = 0; i < 4; i++) {
+      const s = makeGhostPickup(this.kit);
+      s.root.visible = false;
+      this.scene.add(s.root);
+      this.ents.push(this.baseEnt("ghost", s.root, { bodyMat: s.mat, width: 0.7, bob: this.rng() * 6 }));
     }
     for (let i = 0; i < 10; i++) {
       const c = makeCrystal(this.kit);
@@ -947,7 +1041,7 @@ export class GameEngine {
       const m = makeMine(this.kit);
       m.root.visible = false;
       this.scene.add(m.root);
-      this.ents.push(this.baseEnt("mine", m.root, { bodyMat: m.mat, width: 1.1, bob: this.rng() * 6 }));
+      this.ents.push(this.baseEnt("mine", m.root, { bodyMat: m.mat, width: 1.35, bob: this.rng() * 6 }));
     }
   }
 
@@ -964,6 +1058,9 @@ export class GameEngine {
     this.runGems = 0;
     this.shielded = false;
     this.magnetT = 0;
+    this.boostT = 0;
+    this.frostT = 0;
+    this.ghostT = 0;
     this.distance = 0;
     this.combo = 0;
     this.wallsBroken = 0;
@@ -1231,24 +1328,36 @@ export class GameEngine {
 
   private spawnPickupRun(z: number) {
     const r = this.rng();
-    if (r < 0.44) {
-      const lane = Math.floor(this.rng() * 3);
+    const lane = Math.floor(this.rng() * 3);
+    if (r < 0.32) {
       const n = 3 + Math.floor(this.rng() * 3);
       const val = this.rng() < 0.28 ? 2 : this.rng() < 0.1 ? 3 : 1;
       this.spawnAmmoLine(z, lane, n, val);
-    } else if (r < 0.62) {
+    } else if (r < 0.46) {
       for (let i = 0; i < 5; i++) this.spawnAmmo(z - i * 1.4, i % 3, 1);
-    } else if (r < 0.78) {
-      this.spawnGems(z, Math.floor(this.rng() * 3));
-    } else if (r < 0.9) {
-      this.spawnCrystal(z, Math.floor(this.rng() * 3));
-    } else if (this.distance > 80 && this.magnetT <= 0 && r < 0.96) {
-      this.spawnMagnet(z, Math.floor(this.rng() * 3));
+    } else if (r < 0.58) {
+      this.spawnGems(z, lane);
+    } else if (r < 0.7) {
+      this.spawnCrystal(z, lane);
+    } else if (r < 0.8 && this.distance > 40 && this.boostT <= 0) {
+      this.spawnPower("boost", z, lane);
+    } else if (r < 0.88 && this.distance > 70 && this.frostT <= 0) {
+      this.spawnPower("frost", z, lane);
+    } else if (r < 0.94 && this.distance > 90 && this.ghostT <= 0) {
+      this.spawnPower("ghost", z, lane);
+    } else if (this.distance > 80 && this.magnetT <= 0 && this.rng() < 0.55) {
+      this.spawnMagnet(z, lane);
     } else if (this.distance > 110 && !this.shielded) {
-      this.spawnShield(z, Math.floor(this.rng() * 3));
+      this.spawnShield(z, lane);
     } else {
-      this.spawnGems(z, Math.floor(this.rng() * 3));
+      this.spawnGems(z, lane);
     }
+  }
+
+  private spawnPower(kind: "boost" | "frost" | "ghost", z: number, lane: number) {
+    const e = this.take(kind);
+    if (!e) return;
+    this.activate(e, z, LANE_X[lane], [lane === 0, lane === 1, lane === 2]);
   }
 
   private spawnShield(z: number, lane: number) {
@@ -1277,7 +1386,7 @@ export class GameEngine {
     this.activate(e, z, slide ? 0 : LANE_X[lane], [lane === 0, lane === 1, lane === 2]);
     e.slide = slide;
     e.baseX = slide ? 0 : LANE_X[lane];
-    e.slideAmp = slide ? 2.15 : 0;
+    e.slideAmp = slide ? 2.55 : 0;
     e.bob = this.rng() * Math.PI * 2;
   }
 
@@ -1287,7 +1396,7 @@ export class GameEngine {
     this.activate(e, z, slide ? 0 : LANE_X[lane], [lane === 0, lane === 1, lane === 2]);
     e.slide = slide;
     e.baseX = slide ? 0 : LANE_X[lane];
-    e.slideAmp = slide ? 2.15 : 0;
+    e.slideAmp = slide ? 2.55 : 0;
     e.bob = this.rng() * Math.PI * 2;
   }
 
@@ -1295,7 +1404,7 @@ export class GameEngine {
     const e = this.take("barrel");
     if (!e || !e.label || !e.bodyMat) return;
     this.activate(e, z, LANE_X[lane], [lane === 0, lane === 1, lane === 2]);
-    const hp = Math.max(3, Math.min(12, Math.round(this.power * (0.08 + d * 0.08) + 2)));
+    const hp = Math.max(4, Math.min(this.power, Math.round(this.power * (0.34 + d * 0.22))));
     e.hp = hp;
     e.maxHp = hp;
     e.tuned = true;
@@ -1314,8 +1423,31 @@ export class GameEngine {
     if (!e) return;
     this.activate(e, z, LANE_X[lane], [lane === 0, lane === 1, lane === 2]);
     e.slide = slide;
+    e.baseX = slide ? 0 : LANE_X[lane];
+    e.slideAmp = slide ? 2.55 : 0;
+    e.bob = this.rng() * Math.PI * 2;
+  }
+
+  private spawnSpike(z: number, lane: number) {
+    const e = this.take("spike");
+    if (!e) return;
+    this.activate(e, z, LANE_X[lane], [lane === 0, lane === 1, lane === 2]);
+  }
+
+  private spawnLaser(z: number, lane: number) {
+    const e = this.take("laser");
+    if (!e) return;
+    this.activate(e, z, LANE_X[lane], [lane === 0, lane === 1, lane === 2]);
+  }
+
+  private spawnRam(z: number) {
+    const e = this.take("ram");
+    if (!e) return;
+    this.activate(e, z, 0, [false, true, false]);
+    e.slide = true;
     e.baseX = 0;
-    e.slideAmp = slide ? 2.15 : 0;
+    e.slideAmp = 1.08;
+    e.width = 3.3;
     e.bob = this.rng() * Math.PI * 2;
   }
 
@@ -1324,28 +1456,33 @@ export class GameEngine {
     const open = Math.floor(this.rng() * 3);
     const a = (open + 1) % 3;
     const b = (open + 2) % 3;
-    if (roll < 0.16) {
-      this.spawnBlockAt(z, a);
-    } else if (roll < 0.3) {
-      this.spawnBlockAt(z, a);
-      this.spawnBlockAt(z, b);
+    if (roll < 0.12) {
+      this.spawnSpike(z, a);
+      if (this.rng() < 0.65) this.spawnSpike(z, b);
+    } else if (roll < 0.22) {
+      this.spawnLaser(z, a);
+      if (this.rng() < 0.4) this.spawnBlockAt(z - 6, b);
+    } else if (roll < 0.32 && d > 0.05) {
+      this.spawnRam(z);
     } else if (roll < 0.42) {
+      this.spawnBlockAt(z, a);
+      if (this.rng() < 0.55) this.spawnBlockAt(z, b);
+    } else if (roll < 0.52) {
       this.spawnMine(z, a);
-      if (this.rng() < 0.4) this.spawnMine(z - 5, b);
-    } else if (roll < 0.54) {
+      if (this.rng() < 0.45) this.spawnMine(z - 5, b);
+    } else if (roll < 0.62) {
       this.spawnSaw(z, a, false);
-    } else if (roll < 0.64 && d > 0.08) {
+      if (this.rng() < 0.35) this.spawnSpike(z - 6, b);
+    } else if (roll < 0.72 && d > 0.08) {
       this.spawnSaw(z, 1, true);
-    } else if (roll < 0.74 && d > 0.12) {
+    } else if (roll < 0.8 && d > 0.12) {
       this.spawnMine(z, 1, true);
-    } else if (roll < 0.82 && d > 0.18) {
-      this.spawnBlockAt(z, 1, true);
-    } else if (roll < 0.92) {
+    } else if (roll < 0.9) {
       this.spawnBarrel(z, a, d);
-      if (this.rng() < 0.5) this.spawnBarrel(z - 6, b, d);
+      if (this.rng() < 0.45) this.spawnBarrel(z - 6, b, d);
     } else {
-      this.spawnBlockAt(z, 0);
-      this.spawnMine(z - 7, 2);
+      this.spawnLaser(z, 0);
+      this.spawnSpike(z - 7, 2);
     }
   }
 
@@ -1391,7 +1528,12 @@ export class GameEngine {
     const playing = this.phase === "playing";
     const scrolling = playing || this.phase === "title";
     if (playing) {
-      this.speed = Math.min(MAX_SPEED, BASE_SPEED * VEHICLES[this.vehicle].speed + this.distance * SPEED_PER_METER);
+      let spd = Math.min(MAX_SPEED, BASE_SPEED * VEHICLES[this.vehicle].speed + this.distance * SPEED_PER_METER);
+      if (this.frostT > 0) spd *= 0.58;
+      this.speed = spd;
+      this.boostT = Math.max(0, this.boostT - dt);
+      this.frostT = Math.max(0, this.frostT - dt);
+      this.ghostT = Math.max(0, this.ghostT - dt);
       this.steer(dt);
       this.distance += this.speed * dt;
       this.score = this.tally();
@@ -1430,7 +1572,7 @@ export class GameEngine {
   private stepMovers() {
     for (const e of this.ents) {
       if (!e.active || !e.slide) continue;
-      e.x = e.baseX + Math.sin(this.elapsed * 1.55 + e.bob) * e.slideAmp;
+      e.x = e.baseX + Math.sin(this.elapsed * 2.8 + e.bob) * e.slideAmp;
       let lane = 1;
       let best = 99;
       for (let i = 0; i < 3; i++) {
@@ -1637,16 +1779,17 @@ export class GameEngine {
       this.coralMesh.instanceMatrix.needsUpdate = true;
     }
     if (this.trunkMesh.visible) {
+      const snow = this.theme === "frost";
       for (let i = 0; i < this.treeZ.length; i++) {
-        this.stamp(this.trunkMesh, i, this.treeX[i], 1.2, this.treeZ[i]);
-        this.stamp(this.canopyMesh, i, this.treeX[i], 2.7, this.treeZ[i], 1.05, 0.9, 1.05);
+        this.stamp(this.trunkMesh, i, this.treeX[i], snow ? 1.55 : 1.2, this.treeZ[i], snow ? 0.7 : 1, snow ? 1.35 : 1, snow ? 0.7 : 1);
+        this.stamp(this.canopyMesh, i, this.treeX[i], snow ? 3.15 : 2.7, this.treeZ[i], snow ? 0.85 : 1.05, snow ? 1.35 : 0.9, snow ? 0.85 : 1.05);
       }
       this.trunkMesh.instanceMatrix.needsUpdate = true;
       this.canopyMesh.instanceMatrix.needsUpdate = true;
     }
     if (this.hillMesh.visible) {
-      const y = this.theme === "reef" ? 0.9 : 1.4;
-      const t = this.theme === "reef" ? 0.7 : 1;
+      const y = this.theme === "reef" ? 0.9 : this.theme === "dune" ? 0.55 : this.theme === "frost" ? 1.05 : 1.4;
+      const t = this.theme === "dune" ? 0.42 : this.theme === "reef" ? 0.7 : 1;
       for (let i = 0; i < this.hillZ.length; i++) {
         const s = this.hillS[i];
         this.stamp(this.hillMesh, i, this.hillSide[i] * (TRACK_WIDTH / 2 + 5.6), y, this.hillZ[i], s, s * 0.42 * t, s * 1.35);
@@ -1734,10 +1877,11 @@ export class GameEngine {
     this.fireAcc += rate * dt;
     let vis = 0;
     const visEvery = Math.max(1, Math.floor(rate / 26));
+    const dmg = this.boostT > 0 ? 2 : 1;
     while (this.fireAcc >= 1 && this.power > 0 && target.hp > 0) {
       this.fireAcc -= 1;
       this.power -= 1;
-      target.hp -= 1;
+      target.hp -= dmg;
       target.pulse = 1;
       vis++;
       if (vis % visEvery === 0) {
@@ -1815,7 +1959,7 @@ export class GameEngine {
     for (const e of this.ents) {
       if (!e.active || e.consumed) continue;
       if (e.z < HIT_Z_MIN || e.z > HIT_Z) continue;
-      if (!this.occupies(e, this.lane)) continue;
+      if (Math.abs(this.playerX - e.x) >= e.width * 0.5 + 0.42) continue;
       if (e.kind === "gate" && e.op) {
         e.consumed = true;
         const before = this.power;
@@ -1868,15 +2012,40 @@ export class GameEngine {
         this.burst(e.x, 0.8, 0.1, 12, 0x7ee0d4);
         this.spawnFloater(e.x, 1.6, 0.15, "SHIELD", "#7ee0d4");
         this.recycle(e);
-      } else if (e.kind === "block" || e.kind === "saw" || e.kind === "mine") {
+      } else if (e.kind === "boost") {
+        e.consumed = true;
+        this.boostT = 6;
+        this.audio.playBoost();
+        this.burst(e.x, 0.8, 0.1, 14, 0xffd060);
+        this.spawnFloater(e.x, 1.6, 0.15, "BOOST", "#ffd060");
+        this.recycle(e);
+      } else if (e.kind === "frost") {
+        e.consumed = true;
+        this.frostT = 5;
+        this.audio.playFrost();
+        this.burst(e.x, 0.8, 0.1, 14, 0x9fd8ff);
+        this.spawnFloater(e.x, 1.6, 0.15, "FROST", "#9fd8ff");
+        this.recycle(e);
+      } else if (e.kind === "ghost") {
+        e.consumed = true;
+        this.ghostT = 4;
+        this.audio.playGhost();
+        this.burst(e.x, 0.8, 0.1, 14, 0xc8b0ff);
+        this.spawnFloater(e.x, 1.6, 0.15, "PHASE", "#c8b0ff");
+        this.recycle(e);
+      } else if (e.kind === "block" || e.kind === "saw" || e.kind === "mine" || e.kind === "spike" || e.kind === "laser" || e.kind === "ram") {
+        if (this.ghostT > 0) continue;
         if (this.absorbHit(e)) continue;
         this.die();
         return;
       } else if ((e.kind === "wall" || e.kind === "barrel") && e.hp > 0) {
-        if (this.power >= e.hp) {
-          this.power -= e.hp;
+        const cost = this.boostT > 0 ? Math.ceil(e.hp / 2) : e.hp;
+        if (this.power >= cost) {
+          this.power -= cost;
           if (e.kind === "wall") this.breakWall(e);
           else this.breakBarrel(e);
+        } else if (this.ghostT > 0) {
+          continue;
         } else if (this.absorbHit(e)) {
           continue;
         } else {
@@ -2055,6 +2224,9 @@ export class GameEngine {
       this.magnetFx.scale.setScalar(1 + Math.sin(t * 6) * 0.08);
       this.magnetFx.rotation.z += dt * 4;
     }
+    this.spinAura(this.boostFx, this.boostT > 0, t, dt, 5);
+    this.spinAura(this.frostFx, this.frostT > 0, t, dt, -3.2);
+    this.spinAura(this.ghostFx, this.ghostT > 0, t, dt, 2.4);
 
     this.laneGlow.position.x = this.playerX;
     const glowMat = this.laneGlow.material as THREE.MeshBasicMaterial;
@@ -2082,7 +2254,7 @@ export class GameEngine {
       e.pulse = Math.max(0, e.pulse - dt * 8);
       e.root.position.x = e.x;
       e.root.position.z = e.z;
-      if (e.kind === "gem" || e.kind === "ammo" || e.kind === "shield" || e.kind === "crystal" || e.kind === "magnet") {
+      if (e.kind === "gem" || e.kind === "ammo" || e.kind === "shield" || e.kind === "crystal" || e.kind === "magnet" || e.kind === "boost" || e.kind === "frost" || e.kind === "ghost") {
         e.bob += dt * 4;
         e.root.position.y = 0.15 + Math.sin(e.bob) * 0.12;
         e.root.rotation.y += dt * 2.4;
@@ -2101,6 +2273,9 @@ export class GameEngine {
         e.root.position.y = Math.sin(e.bob) * 0.08;
         e.root.rotation.y += dt * 2.2;
         if (e.bodyMat) e.bodyMat.emissiveIntensity = 0.4 + Math.sin(t * 8 + e.x) * 0.25;
+      } else if (e.kind === "laser") {
+        e.root.position.y = 0;
+        if (e.bodyMat) e.bodyMat.emissiveIntensity = 1.1 + Math.sin(t * 14 + e.x) * 0.45;
       } else if (e.kind === "barrel") {
         e.root.position.y = 0;
         e.root.rotation.y = Math.sin(t * 2 + e.x) * 0.08;
@@ -2153,8 +2328,14 @@ export class GameEngine {
         this.moteY[i] += dt * (0.55 + (i % 5) * 0.12);
         if (this.moteY[i] > 5.5) this.moteY[i] = 0.15;
         y = this.moteY[i];
+      } else if (this.theme === "frost") {
+        this.moteY[i] -= dt * (0.7 + (i % 4) * 0.18);
+        if (this.moteY[i] < 0.15) this.moteY[i] = 5.2;
+        y = this.moteY[i];
+      } else if (this.theme === "dune") {
+        y = 0.35 + Math.sin(t * 0.8 + i) * 0.2;
       }
-      const s = this.theme === "luna" ? 1.8 : this.theme === "reef" ? 1.4 : 1;
+      const s = this.theme === "luna" ? 1.8 : this.theme === "reef" ? 1.4 : this.theme === "frost" ? 0.7 : this.theme === "dune" ? 1.3 : 1;
       this.stamp(this.moteMesh, i, this.moteX[i], y, this.moteZ[i], s, s, s);
     }
     this.moteMesh.instanceMatrix.needsUpdate = true;
@@ -2192,7 +2373,10 @@ export class GameEngine {
       const n = e.lanes.filter(Boolean).length;
       if (n === 1 && e.lanes[this.lane] && e.hp > this.power) return "Too big — swerve";
     }
-    if (this.magnetT > 1.2) return "Magnet";
+    if (this.magnetT > 1.2) return "Magnet — gems pull in";
+    if (this.boostT > 0.4) return "Boost — each shot hits twice";
+    if (this.frostT > 0.4) return "Frost — the track slows";
+    if (this.ghostT > 0.4) return "Phase — hazards pass through";
     return "";
   }
 
@@ -2214,6 +2398,9 @@ export class GameEngine {
       wallHp: this.wallHp,
       shielded: this.shielded,
       magnet: this.magnetT > 0,
+      boost: this.boostT > 0,
+      frost: this.frostT > 0,
+      ghost: this.ghostT > 0,
       muted: this.muted,
       shake: this.shakeOn,
       hint: this.hint(),

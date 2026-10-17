@@ -20,6 +20,9 @@ export type HudState = {
   wallHp: number | null;
   shielded: boolean;
   magnet: boolean;
+  boost: boolean;
+  frost: boolean;
+  ghost: boolean;
   muted: boolean;
   shake: boolean;
   hint: string;
@@ -53,6 +56,9 @@ export const useHud = create<HudState>(() => ({
   wallHp: null,
   shielded: false,
   magnet: false,
+  boost: false,
+  frost: false,
+  ghost: false,
   muted: save.muted,
   shake: save.shake,
   hint: "",

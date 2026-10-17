@@ -19,4 +19,4 @@ export const HIT_Z = 0.85;
 export const HIT_Z_MIN = -1.15;
 
 export const SAVE_KEY = "cannon-math-save-v1";
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;

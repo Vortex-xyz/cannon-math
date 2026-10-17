@@ -248,6 +248,8 @@ export function makeSky(kit: AssetKit) {
           uStars: { value: 0 },
           uCaustic: { value: 0 },
           uClouds: { value: 0 },
+          uSnow: { value: 0 },
+          uDune: { value: 0 },
         },
         vertexShader: `
         varying vec3 vP;
@@ -268,6 +270,8 @@ export function makeSky(kit: AssetKit) {
         uniform float uStars;
         uniform float uCaustic;
         uniform float uClouds;
+        uniform float uSnow;
+        uniform float uDune;
         float hash(vec3 p) {
           return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453);
         }
@@ -292,6 +296,16 @@ export function makeSky(kit: AssetKit) {
             float s = hash(floor(n * 90.0));
             float tw = 0.65 + 0.35 * sin(uTime * 2.4 + s * 40.0);
             col += vec3(0.95, 0.97, 1.0) * step(0.973, s) * uStars * tw;
+          }
+          if (uSnow > 0.01) {
+            col = mix(col, vec3(0.86, 0.93, 0.98), 0.22 * uSnow);
+            float flake = hash(floor(vec3(n.x * 48.0, n.y * 36.0 + uTime * 0.35, n.z * 48.0)));
+            col += vec3(0.95, 0.98, 1.0) * step(0.988, flake) * uSnow;
+          }
+          if (uDune > 0.01) {
+            col = mix(col, vec3(0.95, 0.62, 0.28), smoothstep(0.45, -0.08, h) * 0.45 * uDune);
+            float haze = sin(n.x * 7.0 + uTime * 0.25) * sin(n.z * 5.0);
+            col += vec3(0.55, 0.32, 0.08) * haze * uDune * 0.12;
           }
           gl_FragColor = vec4(col, 1.0);
         }
@@ -1051,6 +1065,130 @@ export function makeMine(kit: AssetKit) {
   return { root, mat };
 }
 
+export function makeSpike(kit: AssetKit) {
+  const root = new THREE.Group();
+  const mat = kit.mat(
+    new THREE.MeshStandardMaterial({
+      color: 0xb8c0c8,
+      emissive: 0x6a3030,
+      emissiveIntensity: 0.4,
+      metalness: 0.72,
+      roughness: 0.28,
+    }),
+  );
+  const geo = kit.geo(new THREE.ConeGeometry(0.2, 0.95, 5));
+  for (let i = 0; i < 3; i++) {
+    const s = new THREE.Mesh(geo, mat);
+    s.position.set(-0.46 + i * 0.46, 0.48, 0);
+    root.add(s);
+  }
+  return { root, mat };
+}
+
+export function makeLaser(kit: AssetKit) {
+  const root = new THREE.Group();
+  const mat = kit.mat(
+    new THREE.MeshStandardMaterial({
+      color: 0xff6868,
+      emissive: 0xff3030,
+      emissiveIntensity: 1.5,
+      metalness: 0.15,
+      roughness: 0.22,
+    }),
+  );
+  const beam = new THREE.Mesh(kit.geo(new THREE.BoxGeometry(0.18, 2.6, 0.18)), mat);
+  beam.position.y = 1.3;
+  const base = new THREE.Mesh(kit.geo(new THREE.CylinderGeometry(0.36, 0.44, 0.16, 8)), mat);
+  base.position.y = 0.08;
+  root.add(beam, base);
+  return { root, mat };
+}
+
+export function makeRam(kit: AssetKit) {
+  const root = new THREE.Group();
+  const mat = kit.mat(
+    new THREE.MeshStandardMaterial({
+      color: 0xc45c4a,
+      emissive: 0x8a2820,
+      emissiveIntensity: 0.5,
+      metalness: 0.42,
+      roughness: 0.38,
+    }),
+  );
+  const bar = new THREE.Mesh(kit.geo(new THREE.BoxGeometry(3.3, 0.7, 0.52)), mat);
+  bar.position.y = 0.72;
+  const capGeo = kit.geo(new THREE.BoxGeometry(0.26, 0.92, 0.68));
+  const left = new THREE.Mesh(capGeo, mat);
+  left.position.set(-1.55, 0.72, 0);
+  const right = new THREE.Mesh(capGeo, mat);
+  right.position.set(1.55, 0.72, 0);
+  root.add(bar, left, right);
+  return { root, mat };
+}
+
+export function makeBoostPickup(kit: AssetKit) {
+  const root = new THREE.Group();
+  const mat = kit.mat(
+    new THREE.MeshStandardMaterial({
+      color: 0xffd060,
+      emissive: 0xe09020,
+      emissiveIntensity: 0.9,
+      metalness: 0.35,
+      roughness: 0.25,
+    }),
+  );
+  const a = new THREE.Mesh(kit.geo(new THREE.ConeGeometry(0.28, 0.48, 4)), mat);
+  a.position.set(0, 0.78, 0);
+  a.rotation.x = Math.PI;
+  const b = new THREE.Mesh(kit.geo(new THREE.ConeGeometry(0.22, 0.38, 4)), mat);
+  b.position.set(0, 0.42, 0);
+  b.rotation.x = Math.PI;
+  root.add(a, b);
+  return { root, mat };
+}
+
+export function makeFrostPickup(kit: AssetKit) {
+  const root = new THREE.Group();
+  const mat = kit.mat(
+    new THREE.MeshStandardMaterial({
+      color: 0xd8f4ff,
+      emissive: 0x6ec8ee,
+      emissiveIntensity: 0.85,
+      metalness: 0.2,
+      roughness: 0.15,
+    }),
+  );
+  const gem = new THREE.Mesh(kit.geo(new THREE.OctahedronGeometry(0.36, 0)), mat);
+  gem.position.y = 0.58;
+  const ring = new THREE.Mesh(kit.geo(new THREE.TorusGeometry(0.42, 0.035, 6, 14)), mat);
+  ring.position.y = 0.58;
+  ring.rotation.x = Math.PI / 2;
+  root.add(gem, ring);
+  return { root, mat };
+}
+
+export function makeGhostPickup(kit: AssetKit) {
+  const root = new THREE.Group();
+  const mat = kit.mat(
+    new THREE.MeshStandardMaterial({
+      color: 0xc8b0ff,
+      emissive: 0x7050c8,
+      emissiveIntensity: 0.8,
+      metalness: 0.15,
+      roughness: 0.2,
+      transparent: true,
+      opacity: 0.85,
+    }),
+  );
+  const orb = new THREE.Mesh(kit.geo(new THREE.SphereGeometry(0.32, 12, 10)), mat);
+  orb.position.y = 0.58;
+  const ring = new THREE.Mesh(kit.geo(new THREE.TorusGeometry(0.46, 0.04, 8, 16)), mat);
+  ring.position.y = 0.58;
+  ring.rotation.x = Math.PI / 2.6;
+  root.add(orb, ring);
+  return { root, mat };
+}
+
 export function makeBlock(kit: AssetKit) {
   const mat = kit.mat(
     new THREE.MeshStandardMaterial({
@@ -1340,7 +1478,9 @@ export function applyWorld(h: WorldHandles, id: ThemeId) {
   u.uSunPow.value = t.sunPow;
   u.uStars.value = +(id === "luna");
   u.uCaustic.value = +(id === "reef");
-  u.uClouds.value = +(id === "toon");
+  u.uClouds.value = +(id === "toon" || id === "frost");
+  u.uSnow.value = +(id === "frost");
+  u.uDune.value = +(id === "dune");
   (h.sunMesh.material as THREE.MeshBasicMaterial).color.setHex(t.sunMesh);
   h.sunMesh.scale.setScalar(t.sunSize);
   h.earth.visible = id === "luna";
@@ -1361,7 +1501,7 @@ export function applyWorld(h: WorldHandles, id: ThemeId) {
   h.pillarMat.color.setHex(t.pillar);
   h.cliffMat.color.setHex(t.cliff);
   h.moteMat.color.setHex(t.mote);
-  h.moteMat.opacity = id === "luna" ? 0.9 : id === "reef" ? 0.55 : id === "toon" ? 0.35 : 0.42;
+  h.moteMat.opacity = id === "luna" ? 0.9 : id === "reef" ? 0.55 : id === "frost" ? 0.75 : id === "dune" ? 0.45 : id === "toon" ? 0.35 : 0.42;
   h.streakMat.color.setHex(t.streak);
   h.laneGlow.color.setHex(t.laneGlow);
   h.ballMat.color.setHex(t.ball);
@@ -1383,13 +1523,13 @@ export function applyWorld(h: WorldHandles, id: ThemeId) {
   h.craterMat.color.setHex(t.crater);
   h.kelp.visible = id === "reef";
   h.coral.visible = id === "reef";
-  h.trunks.visible = id === "toon";
-  h.canopies.visible = id === "toon";
-  h.hills.visible = id === "toon" || id === "reef";
-  h.clouds.visible = id === "toon";
+  h.trunks.visible = id === "toon" || id === "frost";
+  h.canopies.visible = id === "toon" || id === "frost";
+  h.hills.visible = id === "toon" || id === "reef" || id === "frost" || id === "dune";
+  h.clouds.visible = id === "toon" || id === "frost";
   h.craters.visible = id === "luna";
   h.stars.visible = id === "luna";
-  h.cliffs.visible = id === "forge" || id === "luna";
+  h.cliffs.visible = id === "forge" || id === "luna" || id === "dune";
   h.pillars.visible = id === "forge" || id === "luna";
-  h.rails.visible = id === "forge" || id === "luna";
+  h.rails.visible = id === "forge" || id === "luna" || id === "dune";
 }

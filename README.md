@@ -2,7 +2,7 @@
 
 Hypercasual 3D runner. Steer a cannon, scoop numbered balls, and punch through math gates and walls.
 
-- Worlds: Forge, Reef, Toon, Luna
+- Worlds: Forge, Reef, Toon, Luna, Frost, Dune
 - Garage: buy cannons with gems
 - Weekly global board. Last week's top 3 stay until a higher score beats them
 

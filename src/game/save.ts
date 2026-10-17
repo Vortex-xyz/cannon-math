@@ -28,7 +28,7 @@ const SSR_PILOT: Pilot = {
 };
 
 function emptyScores(): Record<ThemeId, number> {
-  return { forge: 0, reef: 0, toon: 0, luna: 0 };
+  return { forge: 0, reef: 0, toon: 0, luna: 0, frost: 0, dune: 0 };
 }
 
 function writePilot(pilot: Pilot) {

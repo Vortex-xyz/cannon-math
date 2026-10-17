@@ -179,6 +179,21 @@ export class GameAudio {
     this.beep(640, 0.18, "triangle", 0.06, 180);
   }
 
+  playBoost() {
+    this.beep(520, 0.1, "square", 0.07, 220);
+    this.beep(780, 0.14, "triangle", 0.06, 260);
+  }
+
+  playFrost() {
+    this.beep(660, 0.16, "sine", 0.07, -120);
+    this.beep(880, 0.18, "triangle", 0.05, 80);
+  }
+
+  playGhost() {
+    this.beep(360, 0.16, "sine", 0.08, 160);
+    this.beep(540, 0.2, "triangle", 0.05, 90);
+  }
+
   playFire() {
     this.beep(140 + Math.random() * 40, 0.05, "square", 0.035, -60);
   }

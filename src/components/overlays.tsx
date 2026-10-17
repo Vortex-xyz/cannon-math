@@ -18,6 +18,8 @@ import {
   Shield,
   Shapes,
   ShoppingBag,
+  Snowflake,
+  Sun,
   Target,
   Trophy,
   Truck,
@@ -46,6 +48,8 @@ const WORLD_ICON: Record<ThemeId, typeof Flame> = {
   reef: Waves,
   toon: Shapes,
   luna: Moon,
+  frost: Snowflake,
+  dune: Sun,
 };
 
 export function Overlays() {
@@ -156,7 +160,7 @@ function TitleCard() {
       <div className="flex-1" />
 
       <div className="pointer-events-auto mx-auto w-full max-w-md">
-        <ul className="mb-4 flex justify-center gap-2">
+        <ul className="mb-4 flex flex-wrap justify-center gap-2">
           {THEME_LIST.map((world) => {
             const Icon = WORLD_ICON[world.id];
             const on = theme === world.id;
@@ -543,6 +547,9 @@ function Hud() {
   const wallHp = useHud((s) => s.wallHp);
   const shielded = useHud((s) => s.shielded);
   const magnet = useHud((s) => s.magnet);
+  const boost = useHud((s) => s.boost);
+  const frost = useHud((s) => s.frost);
+  const ghost = useHud((s) => s.ghost);
   const muted = useHud((s) => s.muted);
   const hint = useHud((s) => s.hint);
   const worldName = useHud((s) => s.worldName);
@@ -576,6 +583,23 @@ function Hud() {
             <p className="mt-1 flex items-center gap-1 font-display text-xs font-semibold tracking-[0.16em] text-danger uppercase">
               <Magnet className="size-3" />
               Magnet
+            </p>
+          )}
+          {boost && (
+            <p className="mt-1 flex items-center gap-1 font-display text-xs font-semibold tracking-[0.16em] text-good uppercase">
+              <Zap className="size-3" />
+              Boost
+            </p>
+          )}
+          {frost && (
+            <p className="mt-1 flex items-center gap-1 font-display text-xs font-semibold tracking-[0.16em] text-steel uppercase">
+              <Snowflake className="size-3" />
+              Frost
+            </p>
+          )}
+          {ghost && (
+            <p className="mt-1 flex items-center gap-1 font-display text-xs font-semibold tracking-[0.16em] text-muted uppercase">
+              Phase
             </p>
           )}
           {lastOp ? (
